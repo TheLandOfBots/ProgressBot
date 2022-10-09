@@ -234,7 +234,7 @@ if __name__ == "__main__":
     load_dotenv()
     application = ApplicationBuilder().token(os.getenv("TOKEN", "")).build()
 
-    conv_handler = ConversationHandler(
+    setup_handler = ConversationHandler(
         entry_points=[
             CommandHandler("start", start),
         ],
@@ -260,7 +260,7 @@ if __name__ == "__main__":
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    morning_conv_handler = ConversationHandler(
+    set_goal_handler = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(
                 set_goal_selected, pattern="^" + str(SELECT_SET_GOAL) + "$"
@@ -293,8 +293,8 @@ if __name__ == "__main__":
             pattern="^" + str(SELECT_GOAL_NOT_COMPLETED) + "$",
         )
     )
-    application.add_handler(conv_handler)
-    application.add_handler(morning_conv_handler)
+    application.add_handler(setup_handler)
+    application.add_handler(set_goal_handler)
     application.add_handler(CommandHandler("status", status))
     application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
