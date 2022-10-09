@@ -109,8 +109,9 @@ async def process_age(
 async def process_morning_time(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    time = datetime.strptime(update.message.text, "%H:%M").time
-    context.user_data["morning_time"] = time
+    context.user_data["morning_time"] = datetime.strptime(
+        update.message.text, "%H:%M"
+    ).time()
     await update.message.reply_text(
         "What's your preferred time for an evening notification?"
     )
