@@ -18,9 +18,10 @@ from telegram.ext import (
 )
 import inspect
 
-AGE, MORNING_TIME, EVENING_TIME = range(3)
 TOTAL_NUMBER_OF_WEEKS = 4680
 TOTAL_NUMBER_OF_DAYS = TOTAL_NUMBER_OF_WEEKS * 7
+AGE, MORNING_TIME, EVENING_TIME = range(3)
+SET_GOAL = 0
 
 # Callback data
 (
@@ -30,7 +31,6 @@ TOTAL_NUMBER_OF_DAYS = TOTAL_NUMBER_OF_WEEKS * 7
     SELECT_GOAL_NOT_COMPLETED,
 ) = range(4)
 
-SET_GOAL = 0
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -57,7 +57,7 @@ def get_status_message(user_data: dict) -> str:
 
     day_goal = user_data.get("day_goal")
     day_goal_text = day_goal if day_goal else "Not set!"
-    streak = user_data.get("current_streak", 0)
+    streak = user_data.get("streak", 0)
 
     now = datetime.now().date()
     weeks = get_number_of_weeks_between(start_date, now)
@@ -102,13 +102,29 @@ async def send_morning_notification(
 async def send_evening_notification(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    assert context.user_data, "User data should not be None"
     job = context.job
     chat_id = job.chat_id
     day_goal = context.user_data.get("day_goal")
+
     if day_goal:
-        pass
-    else:
-        pass
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "Yes", callback_data=str(SELECT_GOAL_COMPLETED)
+                ),
+                InlineKeyboardButton(
+                    "No", callback_data=str(SELECT_GOAL_NOT_COMPLETED)
+                ),
+            ],
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="Did you complete the day goal?",
+            reply_markup=reply_markup,
+        )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -146,6 +162,7 @@ async def process_evening_time(
 
     chat_id = update.effective_message.chat_id
     time = datetime.strptime(update.message.text, "%H:%M").time()
+    context.user_data["streak"] = 0
     context.user_data["evening_time"] = time
     context.user_data["start_date"] = datetime.now().date()
     age = context.user_data["age"]
@@ -163,7 +180,7 @@ async def process_evening_time(
 
     context.job_queue.run_daily(
         send_morning_notification,
-        (datetime.utcnow() + timedelta(seconds=3)).time(),
+        (datetime.utcnow() + timedelta(seconds=2)).time(),
         chat_id=chat_id,
         user_id=chat_id,
         name=str(chat_id),
@@ -171,11 +188,18 @@ async def process_evening_time(
 
     context.job_queue.run_daily(
         send_evening_notification,
-        time,
+        (datetime.utcnow() + timedelta(seconds=10)).time(),
         chat_id=chat_id,
         user_id=chat_id,
         name=str(chat_id),
     )
+    # context.job_queue.run_daily(
+    #     send_evening_notification,
+    #     time,
+    #     chat_id=chat_id,
+    #     user_id=chat_id,
+    #     name=str(chat_id),
+    # )
 
     await update.message.reply_text("All set!")
     await update.message.reply_text(get_status_message(context.user_data))
@@ -233,6 +257,32 @@ async def skip_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def goal_completed(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_reply_markup(reply_markup=None)
+    context.user_data["day_goal"] = None
+    context.user_data["streak"] += 1
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"Good job! Goal streak: {context.user_data['streak']}",
+    )
+
+
+async def goal_not_completed(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_reply_markup(reply_markup=None)
+    context.user_data["day_goal"] = None
+    context.user_data["streak"] = 0
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Better luck next time!",
+    )
+
+
 if __name__ == "__main__":
     load_dotenv()
     application = ApplicationBuilder().token(os.getenv("TOKEN", "")).build()
@@ -283,6 +333,17 @@ if __name__ == "__main__":
     application.add_handler(
         CallbackQueryHandler(
             skip_selected, pattern="^" + str(SELECT_SKIP) + "$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            goal_completed, pattern="^" + str(SELECT_GOAL_COMPLETED) + "$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            goal_not_completed,
+            pattern="^" + str(SELECT_GOAL_NOT_COMPLETED) + "$",
         )
     )
     application.add_handler(conv_handler)
