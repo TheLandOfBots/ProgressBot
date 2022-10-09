@@ -14,6 +14,7 @@ from telegram.ext import (
     MessageHandler,
     ConversationHandler,
     CallbackQueryHandler,
+    PicklePersistence,
     filters,
 )
 from utils import get_status_message
@@ -233,7 +234,13 @@ async def goal_not_completed(
 
 if __name__ == "__main__":
     load_dotenv()
-    application = ApplicationBuilder().token(os.getenv("TOKEN", "")).build()
+    persistence = PicklePersistence(filepath="progress_bot_data.pkl")
+    application = (
+        ApplicationBuilder()
+        .token(os.getenv("TOKEN", ""))
+        .persistence(persistence)
+        .build()
+    )
 
     setup_handler = ConversationHandler(
         entry_points=[
