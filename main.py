@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -16,10 +16,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
 )
-import inspect
+from utils import get_status_message
 
-TOTAL_NUMBER_OF_WEEKS = 4680
-TOTAL_NUMBER_OF_DAYS = TOTAL_NUMBER_OF_WEEKS * 7
 AGE, MORNING_TIME, EVENING_TIME = range(3)
 SET_GOAL = 0
 
@@ -38,42 +36,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_number_of_weeks_between(d1: date, d2: date) -> int:
-    # count weeks between mondays
-    monday1 = d1 - timedelta(days=d1.weekday())
-    monday2 = d2 - timedelta(days=d2.weekday())
-    return (monday2 - monday1).days // 7
-
-
-def get_status_message(user_data: dict) -> str:
-    try:
-        start_date = user_data["start_date"]
-        start_week = user_data["start_week"]
-        start_day = user_data["start_day"]
-    except KeyError:
-        return "Missing information. Did you call /start?"
-
-    day_goal = user_data.get("day_goal")
-    day_goal_text = day_goal if day_goal else "Not set!"
-    streak = user_data.get("streak", 0)
-
-    now = datetime.now().date()
-    weeks = get_number_of_weeks_between(start_date, now)
-    days = (now - start_date).days
-
-    current_week = start_week + weeks
-    current_week_pct = round((current_week / TOTAL_NUMBER_OF_WEEKS) * 100, 2)
-    current_day = start_day + days
-    current_day_pct = round((current_day / TOTAL_NUMBER_OF_DAYS) * 100, 2)
-
-    return inspect.cleandoc(
-        f"""Weeks: {current_week}/{TOTAL_NUMBER_OF_WEEKS} ({current_week_pct}%)
-        Days: {current_day}/{TOTAL_NUMBER_OF_DAYS} ({current_day_pct}%)
-        Day goal: {day_goal_text}
-        Streak: {streak}"""
-    )
 
 
 async def send_morning_notification(
@@ -170,17 +132,9 @@ async def process_evening_time(
     context.user_data["start_day"] = age * 52 * 7
 
     # setup notifications
-    # context.job_queue.run_daily(
-    #     send_morning_notification,
-    #     context.user_data["morning_time"],
-    #     chat_id=chat_id,
-    #     user_id=chat_id,
-    #     name=str(chat_id),
-    # )
-
     context.job_queue.run_daily(
         send_morning_notification,
-        (datetime.utcnow() + timedelta(seconds=2)).time(),
+        context.user_data["morning_time"],
         chat_id=chat_id,
         user_id=chat_id,
         name=str(chat_id),
@@ -188,18 +142,11 @@ async def process_evening_time(
 
     context.job_queue.run_daily(
         send_evening_notification,
-        (datetime.utcnow() + timedelta(seconds=10)).time(),
+        time,
         chat_id=chat_id,
         user_id=chat_id,
         name=str(chat_id),
     )
-    # context.job_queue.run_daily(
-    #     send_evening_notification,
-    #     time,
-    #     chat_id=chat_id,
-    #     user_id=chat_id,
-    #     name=str(chat_id),
-    # )
 
     await update.message.reply_text("All set!")
     await update.message.reply_text(get_status_message(context.user_data))
