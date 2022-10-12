@@ -234,7 +234,7 @@ async def goal_not_completed(
 
 if __name__ == "__main__":
     load_dotenv()
-    persistence = PicklePersistence(filepath="progress_bot_data.pkl")
+    persistence = PicklePersistence(filepath="./data/progress_bot_data.pkl")
     application = (
         ApplicationBuilder()
         .token(os.getenv("TOKEN", ""))

@@ -1,3 +1,5 @@
 .env
 pyrightconfig.json
 progress_bot_data.pkl
+data/*
+!data/.keep
